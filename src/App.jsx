@@ -612,7 +612,69 @@ function RateLimitMonitor({ stats }) {
 }
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
+function ExitRuleRow({ coin, rule, onChange, color }) {
+  const set = (k, v) => onChange({ ...rule, [k]: v });
+  return (
+    <div style={{ background: "var(--color-background-secondary)", borderRadius: 8, padding: "10px 12px", border: `0.5px solid ${color}44` }}>
+      <div style={{ fontWeight: 600, fontSize: 12, color, marginBottom: 8 }}>{coin}/USD</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {/* Take Profit */}
+        <div>
+          <div style={{ fontSize: 11, color: "#10b981", fontWeight: 600, marginBottom: 5 }}>
+            ↑ Take Profit
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <select value={rule.takeProfitType} onChange={e => set("takeProfitType", e.target.value)}
+              style={{ fontSize: 11, padding: "3px 4px", borderRadius: 4, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", color: "var(--color-text-primary)", cursor: "pointer" }}>
+              <option value="percent">%</option>
+              <option value="absolute">$ price</option>
+            </select>
+            <input type="number" value={rule.takeProfitValue}
+              onChange={e => set("takeProfitValue", e.target.value)}
+              min="0" step={rule.takeProfitType === "percent" ? "0.1" : "1"}
+              placeholder={rule.takeProfitType === "percent" ? "e.g. 2" : "e.g. 500"}
+              style={{ width: "100%", fontSize: 11, padding: "3px 6px", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginTop: 3 }}>
+            {rule.takeProfitType === "percent"
+              ? `Sell when price rises ${rule.takeProfitValue || "0"}% above entry`
+              : `Sell when price rises $${rule.takeProfitValue || "0"} above entry`}
+          </div>
+        </div>
+        {/* Stop Loss */}
+        <div>
+          <div style={{ fontSize: 11, color: "#ef4444", fontWeight: 600, marginBottom: 5 }}>
+            ↓ Stop Loss
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <select value={rule.stopLossType} onChange={e => set("stopLossType", e.target.value)}
+              style={{ fontSize: 11, padding: "3px 4px", borderRadius: 4, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", color: "var(--color-text-primary)", cursor: "pointer" }}>
+              <option value="percent">%</option>
+              <option value="absolute">$ price</option>
+            </select>
+            <input type="number" value={rule.stopLossValue}
+              onChange={e => set("stopLossValue", e.target.value)}
+              min="0" step={rule.stopLossType === "percent" ? "0.1" : "1"}
+              placeholder={rule.stopLossType === "percent" ? "e.g. 1" : "e.g. 200"}
+              style={{ width: "100%", fontSize: 11, padding: "3px 6px", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginTop: 3 }}>
+            {rule.stopLossType === "percent"
+              ? `Sell when price drops ${rule.stopLossValue || "0"}% below entry`
+              : `Sell when price drops $${rule.stopLossValue || "0"} below entry`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsModal({ creds, onSave, onClose }) {
+  const defaultExitRules = {
+    BTC: { takeProfitType: "percent", takeProfitValue: "2", stopLossType: "percent", stopLossValue: "1" },
+    ETH: { takeProfitType: "percent", takeProfitValue: "2", stopLossType: "percent", stopLossValue: "1" },
+    SOL: { takeProfitType: "percent", takeProfitValue: "2", stopLossType: "percent", stopLossValue: "1" },
+  };
   const [form, setForm] = useState({
     apiKeyName: creds.apiKeyName || "",
     privateKey: creds.privateKey || "",
@@ -620,85 +682,131 @@ function SettingsModal({ creds, onSave, onClose }) {
     minConfidence: creds.minConfidence || "60",
     enabledCoins: creds.enabledCoins || ["BTC"],
     sandbox: creds.sandbox !== undefined ? creds.sandbox : false,
+    exitRules: creds.exitRules || defaultExitRules,
   });
   const [showKey, setShowKey] = useState(false);
+  const [activeTab, setActiveTab] = useState("api"); // "api" | "trading"
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const toggleCoin = (c) => set("enabledCoins", form.enabledCoins.includes(c) ? form.enabledCoins.filter((x) => x !== c) : [...form.enabledCoins, c]);
+  const setExitRule = (coin, rule) => set("exitRules", { ...form.exitRules, [coin]: rule });
+
+  const tabBtn = (id, label) => (
+    <button onClick={() => setActiveTab(id)}
+      style={{ padding: "6px 16px", borderRadius: 6, border: "0.5px solid", cursor: "pointer", fontSize: 12, fontWeight: 600,
+        borderColor: activeTab === id ? "#6366f1" : "var(--color-border-tertiary)",
+        background: activeTab === id ? "#6366f122" : "transparent",
+        color: activeTab === id ? "#6366f1" : "var(--color-text-secondary)" }}>
+      {label}
+    </button>
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 14, padding: "24px 28px", width: 480, maxWidth: "96vw", maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 14, padding: "24px 28px", width: 520, maxWidth: "96vw", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>Coinbase API settings</div>
-            <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>Advanced Trade API — CDP credentials</div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>Settings</div>
+            <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>API credentials & trading rules</div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-secondary)", padding: 4 }}>
             <i className="ti ti-x" aria-hidden="true" />
           </button>
         </div>
 
-        <div style={{ background: "var(--color-background-info)", border: "0.5px solid var(--color-border-info)", borderRadius: 8, padding: "10px 12px", marginBottom: 18, fontSize: 11, color: "var(--color-text-info)", lineHeight: 1.6 }}>
-          <i className="ti ti-info-circle" aria-hidden="true" /> Create CDP API keys at <strong>cdp.coinbase.com</strong> → API Keys → New key. Select <em>Advanced Trade</em> scope. Your private key is only stored in this browser session and never sent anywhere except Coinbase.
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+          {tabBtn("api", "🔑 API Credentials")}
+          {tabBtn("trading", "📊 Trading Rules")}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <label style={{ fontSize: 12 }}>
-            <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>API Key Name <span style={{ color: "#ef4444" }}>*</span></div>
-            <input value={form.apiKeyName} onChange={(e) => set("apiKeyName", e.target.value)}
-              placeholder="organizations/xxx/apiKeys/yyy"
-              style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 11, boxSizing: "border-box" }} />
-          </label>
-
-          <label style={{ fontSize: 12 }}>
-            <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>
-              EC Private Key (PEM) <span style={{ color: "#ef4444" }}>*</span>
-              <button onClick={() => setShowKey((s) => !s)} style={{ marginLeft: 8, background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-text-secondary)" }}>
-                <i className={`ti ${showKey ? "ti-eye-off" : "ti-eye"}`} aria-hidden="true" /> {showKey ? "hide" : "show"}
-              </button>
+        {/* ── API Tab ───────────────────────────────────────────────────── */}
+        {activeTab === "api" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "var(--color-background-info)", border: "0.5px solid var(--color-border-info)", borderRadius: 8, padding: "10px 12px", fontSize: 11, color: "var(--color-text-info)", lineHeight: 1.6 }}>
+              <i className="ti ti-info-circle" aria-hidden="true" /> Create CDP API keys at <strong>cdp.coinbase.com</strong> → API Keys → New key. Select <em>Advanced Trade</em> scope.
             </div>
-            <textarea
-              value={form.privateKey}
-              onChange={(e) => set("privateKey", e.target.value)}
-              placeholder={"-----BEGIN EC PRIVATE KEY-----\n...\n-----END EC PRIVATE KEY-----"}
-              rows={showKey ? 5 : 3}
-              style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 10, resize: "vertical", boxSizing: "border-box", filter: showKey ? "none" : "blur(4px)", userSelect: showKey ? "auto" : "none" }}
-            />
-          </label>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <label style={{ fontSize: 12 }}>
-              <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>Trade size (USD)</div>
-              <input type="number" value={form.tradeSizeUSD} onChange={(e) => set("tradeSizeUSD", e.target.value)}
-                min="1" max="10000" style={{ width: "100%", boxSizing: "border-box" }} />
+              <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>API Key Name <span style={{ color: "#ef4444" }}>*</span></div>
+              <input value={form.apiKeyName} onChange={(e) => set("apiKeyName", e.target.value)}
+                placeholder="organizations/xxx/apiKeys/yyy"
+                style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 11, boxSizing: "border-box" }} />
             </label>
             <label style={{ fontSize: 12 }}>
-              <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>Min confidence (%)</div>
-              <input type="number" value={form.minConfidence} onChange={(e) => set("minConfidence", e.target.value)}
-                min="50" max="97" style={{ width: "100%", boxSizing: "border-box" }} />
+              <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>
+                EC Private Key (PEM) <span style={{ color: "#ef4444" }}>*</span>
+                <button onClick={() => setShowKey((s) => !s)} style={{ marginLeft: 8, background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-text-secondary)" }}>
+                  <i className={`ti ${showKey ? "ti-eye-off" : "ti-eye"}`} aria-hidden="true" /> {showKey ? "hide" : "show"}
+                </button>
+              </div>
+              <textarea value={form.privateKey} onChange={(e) => set("privateKey", e.target.value)}
+                placeholder={"-----BEGIN EC PRIVATE KEY-----\n...\n-----END EC PRIVATE KEY-----"}
+                rows={showKey ? 5 : 3}
+                style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 10, resize: "vertical", boxSizing: "border-box",
+                  filter: showKey ? "none" : "blur(4px)", userSelect: showKey ? "auto" : "none" }} />
+            </label>
+            <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.sandbox} onChange={(e) => set("sandbox", e.target.checked)} />
+              <span style={{ color: "var(--color-text-secondary)" }}>Sandbox / paper-trading mode (no real orders)</span>
             </label>
           </div>
+        )}
 
-          <div style={{ fontSize: 12 }}>
-            <div style={{ color: "var(--color-text-secondary)", marginBottom: 8 }}>Active trading pairs</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {COINS.map((c) => (
-                <button key={c} onClick={() => toggleCoin(c)}
-                  style={{
-                    padding: "5px 14px", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12,
-                    border: `0.5px solid ${form.enabledCoins.includes(c) ? COIN_COLORS[c] : "var(--color-border-tertiary)"}`,
-                    background: form.enabledCoins.includes(c) ? COIN_COLORS[c] + "22" : "transparent",
-                    color: form.enabledCoins.includes(c) ? COIN_COLORS[c] : "var(--color-text-secondary)",
-                  }}>{c}/USD</button>
-              ))}
+        {/* ── Trading Rules Tab ────────────────────────────────────────── */}
+        {activeTab === "trading" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {/* General */}
+            <div>
+              <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 8, fontWeight: 600 }}>General</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <label style={{ fontSize: 12 }}>
+                  <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>Trade size (USD per order)</div>
+                  <input type="number" value={form.tradeSizeUSD} onChange={(e) => set("tradeSizeUSD", e.target.value)}
+                    min="1" max="10000" style={{ width: "100%", boxSizing: "border-box" }} />
+                </label>
+                <label style={{ fontSize: 12 }}>
+                  <div style={{ color: "var(--color-text-secondary)", marginBottom: 5 }}>Min signal confidence (%)</div>
+                  <input type="number" value={form.minConfidence} onChange={(e) => set("minConfidence", e.target.value)}
+                    min="50" max="97" style={{ width: "100%", boxSizing: "border-box" }} />
+                </label>
+              </div>
+            </div>
+
+            {/* Active pairs */}
+            <div>
+              <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 8, fontWeight: 600 }}>Active trading pairs</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                {COINS.map((c) => (
+                  <button key={c} onClick={() => toggleCoin(c)}
+                    style={{ padding: "5px 14px", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 12,
+                      border: `0.5px solid ${form.enabledCoins.includes(c) ? COIN_COLORS[c] : "var(--color-border-tertiary)"}`,
+                      background: form.enabledCoins.includes(c) ? COIN_COLORS[c] + "22" : "transparent",
+                      color: form.enabledCoins.includes(c) ? COIN_COLORS[c] : "var(--color-text-secondary)" }}>
+                    {c}/USD
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>
+                Buy signals are generated by technical indicators. Sells are triggered only by exit rules below.
+              </div>
+            </div>
+
+            {/* Per-coin exit rules */}
+            <div>
+              <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 8, fontWeight: 600 }}>
+                Exit rules (per coin)
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 10, lineHeight: 1.5 }}>
+                Set either <strong>% variance</strong> (relative to entry price) or an <strong>absolute $ amount</strong> the price needs to move. Leave at 0 to disable that rule.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {form.enabledCoins.map((c) => (
+                  <ExitRuleRow key={c} coin={c} rule={form.exitRules[c] || defaultExitRules[c]}
+                    onChange={(rule) => setExitRule(c, rule)} color={COIN_COLORS[c]} />
+                ))}
+              </div>
             </div>
           </div>
-
-          <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input type="checkbox" checked={form.sandbox} onChange={(e) => set("sandbox", e.target.checked)} />
-            <span style={{ color: "var(--color-text-secondary)" }}>Sandbox / paper-trading mode (does not place real orders)</span>
-          </label>
-        </div>
+        )}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "7px 18px", borderRadius: 7, border: "0.5px solid var(--color-border-secondary)", background: "transparent", cursor: "pointer", fontSize: 13, color: "var(--color-text-secondary)" }}>
@@ -706,7 +814,7 @@ function SettingsModal({ creds, onSave, onClose }) {
           </button>
           <button onClick={() => onSave(form)}
             style={{ padding: "7px 22px", borderRadius: 7, border: "0.5px solid #10b981", background: "#d1fae5", color: "#065f46", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            <i className="ti ti-device-floppy" aria-hidden="true" /> Save credentials
+            <i className="ti ti-device-floppy" aria-hidden="true" /> Save
           </button>
         </div>
       </div>
@@ -722,7 +830,17 @@ export default function CryptoAlgoTrader() {
   const [showSettings, setShowSettings] = useState(false);
 
   // Coinbase automation state
-  const [creds, setCreds] = useState({ apiKeyName: "", privateKey: "", tradeSizeUSD: "50", minConfidence: "60", enabledCoins: ["BTC"], sandbox: false });
+  const [creds, setCreds] = useState({
+    apiKeyName: "", privateKey: "",
+    tradeSizeUSD: "50", minConfidence: "60",
+    enabledCoins: ["BTC"], sandbox: false,
+    // Exit rules per coin — keyed by coin symbol
+    exitRules: {
+      BTC: { takeProfitType: "percent", takeProfitValue: "2", stopLossType: "percent", stopLossValue: "1" },
+      ETH: { takeProfitType: "percent", takeProfitValue: "2", stopLossType: "percent", stopLossValue: "1" },
+      SOL: { takeProfitType: "percent", takeProfitValue: "2", stopLossType: "percent", stopLossValue: "1" },
+    },
+  });
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoStatus, setAutoStatus] = useState("idle");
   const [autoLog, setAutoLog] = useState([]);
@@ -1118,22 +1236,55 @@ export default function CryptoAlgoTrader() {
 
       const signal = generateSignal(indicators, activeSentiment, volumeRatio);
 
-      // Execute trades
+      // ── Compute take-profit and stop-loss levels from exit rules ─────────────
+      const exitRule = creds.exitRules?.[coin] || {};
+      const entryPrice = cs.position?.price || newPrice;
+
+      const resolveLevel = (type, value, direction) => {
+        const v = parseFloat(value) || 0;
+        if (!v) return null;
+        if (type === "percent") {
+          return direction === "up"
+            ? entryPrice * (1 + v / 100)
+            : entryPrice * (1 - v / 100);
+        }
+        // absolute price target
+        return direction === "up" ? entryPrice + v : entryPrice - v;
+      };
+
+      const takeProfitPrice = cs.position
+        ? resolveLevel(exitRule.takeProfitType, exitRule.takeProfitValue, "up") : null;
+      const stopLossPrice = cs.position
+        ? resolveLevel(exitRule.stopLossType, exitRule.stopLossValue, "down") : null;
+
+      // ── Determine exit trigger ────────────────────────────────────────────────
+      const hitTakeProfit = takeProfitPrice && newPrice >= takeProfitPrice;
+      const hitStopLoss   = stopLossPrice   && newPrice <= stopLossPrice;
+      const shouldSell    = cs.position && (hitTakeProfit || hitStopLoss);
+      const sellReason    = hitTakeProfit ? "TAKE_PROFIT" : hitStopLoss ? "STOP_LOSS" : null;
+
+      // ── BUY: signal-driven (indicators + sentiment + volume) ─────────────────
       if (signal.action === "BUY" && !cs.position) {
-        cs.position = { price: newPrice, size: 1 };
+        cs.position = { price: newPrice, size: 1, entryTick: tickRef.current };
         cs.trades++;
         if (autoEnabled && creds.enabledCoins.includes(coin)) {
           executeRealTrade(coin, "BUY", newPrice, parseFloat(signal.confidence));
         }
-      } else if (signal.action === "SELL" && cs.position) {
+      }
+
+      // ── SELL: exit rules only (take profit / stop loss) ───────────────────────
+      if (shouldSell) {
         const profit = (newPrice - cs.position.price) / cs.position.price * 100;
         cs.pnl += profit;
         cs.position = null;
         cs.trades++;
         if (autoEnabled && creds.enabledCoins.includes(coin)) {
-          executeRealTrade(coin, "SELL", newPrice, parseFloat(signal.confidence));
+          executeRealTrade(coin, "SELL", newPrice, 100); // exit rules are always 100% confident
         }
       }
+
+      // Store sell reason in the history entry below
+      const exitTrigger = shouldSell ? sellReason : null;
 
       const unrealized = cs.position ? (newPrice - cs.position.price) / cs.position.price * 100 : 0;
       cs.history.push({
@@ -1145,6 +1296,9 @@ export default function CryptoAlgoTrader() {
         score: parseFloat(signal.score),
         volumeRatio, reasons: signal.reasons,
         pnl: cs.pnl + unrealized,
+        exitTrigger,
+        takeProfitPrice: cs.position ? takeProfitPrice : null,
+        stopLossPrice: cs.position ? stopLossPrice : null,
       });
       if (cs.history.length > 80) cs.history.shift();
     });
@@ -1411,14 +1565,35 @@ export default function CryptoAlgoTrader() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ background: "var(--color-background-secondary)", borderRadius: 10, border: "0.5px solid var(--color-border-tertiary)", padding: "12px", flex: 1 }}>
             <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginBottom: 8 }}>Position</div>
-            {coin.position ? (
-              <>
-                <div style={{ fontSize: 11, marginBottom: 3 }}>Entry: <strong>${fmt(coin.position.price, 2)}</strong></div>
-                <div style={{ fontSize: 11, marginBottom: 3 }}>Now: <strong>${fmt(currentPrice, 2)}</strong></div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: unrealized >= 0 ? "#10b981" : "#ef4444" }}>Unrealized: {fmtPct(unrealized)}</div>
-                {autoEnabled && <div style={{ fontSize: 10, marginTop: 4, color: "#6366f1" }}><i className="ti ti-robot" aria-hidden="true" /> Managed by algo</div>}
-              </>
-            ) : (
+            {coin.position ? (() => {
+              const er = creds.exitRules?.[selectedCoin] || {};
+              const ep = coin.position.price;
+              const resolveLevel = (type, val, dir) => {
+                const v = parseFloat(val) || 0;
+                if (!v) return null;
+                return type === "percent"
+                  ? dir === "up" ? ep * (1 + v / 100) : ep * (1 - v / 100)
+                  : dir === "up" ? ep + v : ep - v;
+              };
+              const tp = resolveLevel(er.takeProfitType, er.takeProfitValue, "up");
+              const sl = resolveLevel(er.stopLossType, er.stopLossValue, "down");
+              return (
+                <>
+                  <div style={{ fontSize: 11, marginBottom: 3 }}>Entry: <strong>${fmt(ep, 2)}</strong></div>
+                  <div style={{ fontSize: 11, marginBottom: 3 }}>Now: <strong>${fmt(currentPrice, 2)}</strong></div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: unrealized >= 0 ? "#10b981" : "#ef4444", marginBottom: 6 }}>
+                    Unrealized: {fmtPct(unrealized)}
+                  </div>
+                  {tp && <div style={{ fontSize: 11, color: "#10b981", display: "flex", justifyContent: "space-between" }}>
+                    <span>↑ Take profit</span><strong>${fmt(tp, 2)}</strong>
+                  </div>}
+                  {sl && <div style={{ fontSize: 11, color: "#ef4444", display: "flex", justifyContent: "space-between" }}>
+                    <span>↓ Stop loss</span><strong>${fmt(sl, 2)}</strong>
+                  </div>}
+                  {autoEnabled && <div style={{ fontSize: 10, marginTop: 4, color: "#6366f1" }}><i className="ti ti-robot" aria-hidden="true" /> Managed by algo</div>}
+                </>
+              );
+            })() : (
               <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>No open position</div>
             )}
           </div>
@@ -1495,10 +1670,18 @@ export default function CryptoAlgoTrader() {
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginBottom: 8 }}><i className="ti ti-history" aria-hidden="true" /> Signal log</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
             {coin.history.slice(-12).reverse().map((h, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, padding: "3px 0", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, padding: "4px 0", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
                 <Badge action={h.action} />
+                {h.exitTrigger === "TAKE_PROFIT" && (
+                  <span style={{ fontSize: 10, background: "#d1fae5", color: "#065f46", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>TP ↑</span>
+                )}
+                {h.exitTrigger === "STOP_LOSS" && (
+                  <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>SL ↓</span>
+                )}
                 <span style={{ color: "var(--color-text-secondary)" }}>${fmt(h.price, selectedCoin === "BTC" ? 0 : 2)}</span>
-                <span style={{ marginLeft: "auto", color: "var(--color-text-tertiary)", fontSize: 10 }}>conf {h.confidence}%</span>
+                <span style={{ marginLeft: "auto", color: "var(--color-text-tertiary)", fontSize: 10 }}>
+                  {h.exitTrigger ? h.exitTrigger.replace("_", " ") : `conf ${h.confidence}%`}
+                </span>
               </div>
             ))}
             {coin.history.length === 0 && <div style={{ color: "var(--color-text-tertiary)", fontSize: 11 }}>No signals yet — press Start</div>}
